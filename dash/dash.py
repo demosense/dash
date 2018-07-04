@@ -29,7 +29,9 @@ class Dash(object):
             self,
             name='__main__',
             server=None,
-            static_folder='static',
+            static_folder=None,
+            static_url_path='/static',
+            include_static_files=True,
             url_base_pathname='/',
             index_template='index.html',
             index_lang='en',
@@ -46,13 +48,29 @@ class Dash(object):
                 ''', DeprecationWarning)
 
         name = name or 'dash'
-        template_folder = os.path.join(
-            os.path.dirname(__file__), '..', 'templates')
+
+        lib_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..'))
+        template_folder = os.path.join(lib_dir, 'templates')
+        lib_static = os.path.join(lib_dir, 'static')
+
+        # Set the static folder (same as flask does, but we can use it)
+        static_folder = static_folder or os.path.join(
+            os.getcwd(), 'static'
+        )
+
         # allow users to supply their own flask server
-        self.server = server or Flask(name, static_folder=static_folder)
-        # Breaks the templates of the server if it is supplied.
-        # TODO make a factory for the template only.
-        self.server.template_folder = template_folder
+        self.server = server or Flask(name,
+                                      static_folder=static_folder,
+                                      static_url_path=static_url_path)
+
+        _dash_files = flask.Blueprint('_dash_files',
+                                      '_dash_files',
+                                      url_prefix='/dash-files',
+                                      static_folder=lib_static,
+                                      template_folder=template_folder)
+
+        self.server.register_blueprint(_dash_files)
 
         self.url_base_pathname = url_base_pathname
         self.config = _AttributeDict({
@@ -61,7 +79,8 @@ class Dash(object):
             'requests_pathname_prefix': url_base_pathname,
             'index_template': index_template,
             'index_lang': index_lang,
-            'include_static_files': True,
+            'include_static_files': include_static_files,
+            'static_folder': static_folder
         })
 
         # list of dependencies
@@ -160,12 +179,6 @@ class Dash(object):
         # pylint: disable=protected-access
         self.css._update_layout(layout_value)
         self.scripts._update_layout(layout_value)
-        self._collect_and_register_resources(
-            self.scripts.get_all_scripts()
-        )
-        self._collect_and_register_resources(
-            self.css.get_all_css()
-        )
 
     def serve_layout(self):
         layout = self._layout_value()
@@ -191,6 +204,7 @@ class Dash(object):
         )
 
     def _collect_and_register_resources(self, resources):
+        # now needs the app context.
         # template in the necessary component suite JS bundles
         # add the version number of the package as a query parameter
         # for cache busting
@@ -228,8 +242,12 @@ class Dash(object):
                         srcs.append(url)
             elif 'absolute_path' in resource:
                 raise Exception(
-                    'Serving files form absolute_path isn\'t supported yet'
+                    'Serving files from absolute_path isn\'t supported yet'
                 )
+            elif 'static_path' in resource:
+                static_url = flask.url_for('static',
+                                           filename=resource['static_path'])
+                srcs.append(static_url)
         return srcs
 
     def _generate_css_dist_html(self):
@@ -543,8 +561,32 @@ class Dash(object):
         return self.callback_map[target_id]['callback'](*args)
 
     def _setup_server(self):
+        if self.config.include_static_files:
+            self._walk_static_directory()
+
         self._generate_scripts_html()
         self._generate_css_dist_html()
+
+    def _walk_static_directory(self):
+        walk_dir = self.config.static_folder
+        subs = []
+        for current, _, files in os.walk(walk_dir):
+            if current != walk_dir:
+                subs.append(os.path.basename(current))
+
+            for f in files:
+
+                # path.join is bad here cause we call url_for
+                path = f if not subs else '/'.join(subs + [f])
+
+                if f.endswith('js'):
+                    self.scripts.append_script({
+                        'static_path': path
+                    })
+                elif f.endswith('css'):
+                    self.css.append_css({
+                        'static_path': path
+                    })
 
     def run_server(self,
                    port=8050,
