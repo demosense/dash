@@ -86,6 +86,8 @@ class Dash(object):
         # list of dependencies
         self.callback_map = {}
 
+        self._meta_tags = collections.OrderedDict()
+
         if compress:
             # gzip
             Compress(self.server)
@@ -311,12 +313,14 @@ class Dash(object):
         scripts = self._generate_scripts_html()
         css = self._generate_css_dist_html()
         config = self._generate_config_html()
+        metas = self._meta_tags.values()
         title = getattr(self, 'title', 'Dash')
         return flask.render_template(self.config.index_template,
                                      title=title,
                                      lang=self.config.index_lang,
                                      scripts_files=scripts,
                                      css_files=css,
+                                     metas=metas,
                                      configs=config)
 
     def dependencies(self):
@@ -586,6 +590,9 @@ class Dash(object):
                     self.css.append_css({
                         'static_path': path
                     })
+
+    def add_meta_tag(self, name, content):
+        self._meta_tags[name] = {'name': name, 'content': content}
 
     def run_server(self,
                    port=8050,
