@@ -87,6 +87,7 @@ class Dash(object):
         self.callback_map = {}
 
         self._meta_tags = collections.OrderedDict()
+        self._favicon = None
 
         if compress:
             # gzip
@@ -315,12 +316,15 @@ class Dash(object):
         config = self._generate_config_html()
         metas = self._meta_tags.values()
         title = getattr(self, 'title', 'Dash')
+        favicon = flask.url_for('static', filename=self._favicon) \
+            if self._favicon else None
         return flask.render_template(self.config.index_template,
                                      title=title,
                                      lang=self.config.index_lang,
                                      scripts_files=scripts,
                                      css_files=css,
                                      metas=metas,
+                                     favicon=favicon,
                                      configs=config)
 
     def dependencies(self):
@@ -590,6 +594,8 @@ class Dash(object):
                     self.css.append_css({
                         'static_path': path
                     })
+                elif f == 'favicon.ico':
+                    self._favicon = path
 
     def add_meta_tag(self, name, content):
         self._meta_tags[name] = {'name': name, 'content': content}

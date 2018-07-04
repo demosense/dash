@@ -9,6 +9,9 @@
     {% endblock %}
     <title>{{ title }}</title>
     {% block css_files %}
+    {% if favicon %}
+    <link rel="shortcut icon" href="{{ favicon }}" type="image/x-icon">
+    {% endif %}
     {% for c in css_files %}
         <link rel="stylesheet" href="{{ c | safe }}">
     {% endfor %}
