@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import os
 import sys
 import collections
 import importlib
@@ -30,6 +31,8 @@ class Dash(object):
             server=None,
             static_folder='static',
             url_base_pathname='/',
+            index_template='index.html',
+            index_lang='en',
             compress=True,
             **kwargs):
 
@@ -43,14 +46,22 @@ class Dash(object):
                 ''', DeprecationWarning)
 
         name = name or 'dash'
+        template_folder = os.path.join(
+            os.path.dirname(__file__), '..', 'templates')
         # allow users to supply their own flask server
         self.server = server or Flask(name, static_folder=static_folder)
+        # Breaks the templates of the server if it is supplied.
+        # TODO make a factory for the template only.
+        self.server.template_folder = template_folder
 
         self.url_base_pathname = url_base_pathname
         self.config = _AttributeDict({
             'suppress_callback_exceptions': False,
             'routes_pathname_prefix': url_base_pathname,
-            'requests_pathname_prefix': url_base_pathname
+            'requests_pathname_prefix': url_base_pathname,
+            'index_template': index_template,
+            'index_lang': index_lang,
+            'include_static_files': True,
         })
 
         # list of dependencies
@@ -222,13 +233,9 @@ class Dash(object):
         return srcs
 
     def _generate_css_dist_html(self):
-        links = self._collect_and_register_resources(
+        return self._collect_and_register_resources(
             self.css.get_all_css()
         )
-        return '\n'.join([
-            '<link rel="stylesheet" href="{}">'.format(link)
-            for link in links
-        ])
 
     def _generate_scripts_html(self):
         # Dash renderer has dependencies like React which need to be rendered
@@ -247,18 +254,10 @@ class Dash(object):
                 dash_renderer._js_dist
             )
         )
-
-        return '\n'.join([
-            '<script src="{}"></script>'.format(src)
-            for src in srcs
-        ])
+        return srcs
 
     def _generate_config_html(self):
-        return (
-            '<script id="_dash-config" type="application/json">'
-            '{}'
-            '</script>'
-        ).format(json.dumps(self._config()))
+        return json.dumps(self._config())
 
     # Serve the JS bundles for each package
     def serve_component_suites(self, package_name, path_in_package_dist):
@@ -295,27 +294,13 @@ class Dash(object):
         css = self._generate_css_dist_html()
         config = self._generate_config_html()
         title = getattr(self, 'title', 'Dash')
-        return '''
-        <!DOCTYPE html>
-        <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>{}</title>
-                {}
-            </head>
-            <body>
-                <div id="react-entry-point">
-                    <div class="_dash-loading">
-                        Loading...
-                    </div>
-                </div>
-                <footer>
-                    {}
-                    {}
-                </footer>
-            </body>
-        </html>
-        '''.format(title, css, config, scripts)
+        return flask.render_template(self.config.index_template,
+                                     title=title,
+                                     lang=self.config.index_lang,
+                                     scripts_files=scripts,
+                                     css_files=css,
+                                     configs=config,
+                                     )
 
     def dependencies(self):
         return flask.jsonify([
