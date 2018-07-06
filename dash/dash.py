@@ -39,6 +39,7 @@ class Dash(object):
             index_template='index.html',
             index_lang='en',
             compress=True,
+            meta_tags=None,
             **kwargs):
 
         # pylint-disable: too-many-instance-attributes
@@ -89,7 +90,7 @@ class Dash(object):
         # list of dependencies
         self.callback_map = {}
 
-        self._meta_tags = collections.OrderedDict()
+        self._meta_tags = meta_tags or []
         self._favicon = None
 
         if compress:
@@ -317,7 +318,6 @@ class Dash(object):
         scripts = self._generate_scripts_html()
         css = self._generate_css_dist_html()
         config = self._generate_config_html()
-        metas = self._meta_tags.values()
         title = getattr(self, 'title', 'Dash')
         favicon = flask.url_for('static', filename=self._favicon) \
             if self._favicon else None
@@ -326,7 +326,7 @@ class Dash(object):
                                      lang=self.config.index_lang,
                                      scripts_files=scripts,
                                      css_files=css,
-                                     metas=metas,
+                                     metas=self._meta_tags,
                                      favicon=favicon,
                                      configs=config)
 
@@ -610,7 +610,7 @@ class Dash(object):
                     self._favicon = path
 
     def add_meta_tag(self, name, content):
-        self._meta_tags[name] = {'name': name, 'content': content}
+        self._meta_tags.append({'name': name, 'content': content})
 
     def run_server(self,
                    port=8050,
