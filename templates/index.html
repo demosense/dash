@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    {% block meta_tags %}
+    {% for meta in metas %}
+        <meta name="{{ meta.name }}" content="{{ meta.content }}" >
+    {% endfor %}
+    {% endblock %}
+    <title>{{ title }}</title>
+    {% block css_files %}
+    {% if favicon %}
+    <link rel="shortcut icon" href="{{ favicon }}" type="image/x-icon">
+    {% endif %}
+    {% for c in css_files %}
+        <link rel="stylesheet" href="{{ c | safe }}">
+    {% endfor %}
+    {% endblock %}
+</head>
+<body>
+{% block header %}
+{% endblock %}
+{% block react_entry_point %}
+    <div id="react-entry-point">
+        <div class="_dash-loading">
+            Loading...
+        </div>
+    </div>
+{% endblock %}
+<footer>
+    <script id="_dash-config" type="application/json">{{ configs | safe }}</script>
+    {% for src in scripts_files %}
+        <script src="{{ src | safe }}"></script>
+    {% endfor %}
+    {% block footer %}
+    {% endblock %}
+</footer>
+</body>
+</html>
