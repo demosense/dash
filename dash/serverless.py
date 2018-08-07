@@ -2,6 +2,8 @@ import dash
 
 import json
 
+from functools import wraps
+
 import plotly
 
 class DashServerless(dash.Dash):
