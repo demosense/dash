@@ -102,4 +102,4 @@ class DashServerless(dash.Dash):
             c['id'] == component_registration['id']
         ][0])
 
-    return self.callback_map[target_id]['callback'](*args), cls=plotly.utils.PlotlyJSONEncoder)
+    return self.callback_map[target_id]['callback'](*args)
