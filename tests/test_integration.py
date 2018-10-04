@@ -6,6 +6,7 @@ import re
 import dash_html_components as html
 import dash_core_components as dcc
 import dash_flow_example
+import dash_dangerously_set_inner_html
 
 import dash
 import time
@@ -209,11 +210,11 @@ class Tests(IntegrationTests):
             'id="inner-element"',
             'data-string="multiple words"',
             'data-number="512"',
-            'data-date="%s"' % (test_date),
+            'data-date="%s"' % test_date,
             'aria-progress="5"'
         ], 5)
         passed = False
-        for i, permutation in enumerate(permutations):
+        for permutation in permutations:
             actual_cleaned = re.sub(comment_regex, '',
                                     div.get_attribute('innerHTML'))
             expected_cleaned = re.sub(
@@ -234,6 +235,17 @@ class Tests(IntegrationTests):
             )
 
         assert_clean_console(self)
+
+    def test_no_props_component(self):
+        app = dash.Dash()
+        app.layout = html.Div([
+            dash_dangerously_set_inner_html.DangerouslySetInnerHTML('''
+                <h1>No Props Component</h1>
+            ''')
+        ])
+        self.startServer(app)
+        assert_clean_console(self)
+        self.percy_snapshot(name='no-props-component')
 
     def test_flow_component(self):
         app = dash.Dash()
@@ -272,10 +284,10 @@ class Tests(IntegrationTests):
         self.percy_snapshot(name='flowtype')
 
     def test_meta_tags(self):
-        metas = (
+        metas = [
             {'name': 'description', 'content': 'my dash app'},
-            {'name': 'custom', 'content': 'customized'}
-        )
+            {'name': 'custom', 'content': 'customized'},
+        ]
 
         app = dash.Dash(meta_tags=metas)
 
@@ -285,12 +297,12 @@ class Tests(IntegrationTests):
 
         meta = self.driver.find_elements_by_tag_name('meta')
 
-        # -1 for the meta charset.
-        self.assertEqual(len(metas), len(meta) - 1, 'Not enough meta tags')
+        # -2 for the meta charset and http-equiv.
+        self.assertEqual(len(metas), len(meta) - 2, 'Not enough meta tags')
 
-        for i in range(1, len(meta)):
+        for i in range(2, len(meta)):
             meta_tag = meta[i]
-            meta_info = metas[i - 1]
+            meta_info = metas[i - 2]
             name = meta_tag.get_attribute('name')
             content = meta_tag.get_attribute('content')
             self.assertEqual(name, meta_info['name'])
@@ -351,7 +363,10 @@ class Tests(IntegrationTests):
         self.percy_snapshot('custom-index')
 
     def test_assets(self):
-        app = dash.Dash(assets_folder='tests/assets')
+        app = dash.Dash(__name__,
+                        assets_folder='tests/assets',
+                        assets_url_path='/test-assets',
+                        assets_ignore='.*ignored.*')
         app.index_string = '''
         <!DOCTYPE html>
         <html>
@@ -434,4 +449,88 @@ class Tests(IntegrationTests):
         self.assertTrue('{%config%}' in exc_msg)
         self.assertTrue('{%scripts%}' in exc_msg)
         time.sleep(0.5)
-        print('invalid index string')
+
+    def test_external_files_init(self):
+        js_files = [
+            'https://www.google-analytics.com/analytics.js',
+            {'src': 'https://cdn.polyfill.io/v2/polyfill.min.js'},
+            {
+                'src': 'https://cdnjs.cloudflare.com/ajax/libs/ramda/0.25.0/ramda.min.js',
+                'integrity': 'sha256-YN22NHB7zs5+LjcHWgk3zL0s+CRnzCQzDOFnndmUamY=',
+                'crossorigin': 'anonymous'
+            },
+            {
+                'src': 'https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.10/lodash.min.js',
+                'integrity': 'sha256-VKITM616rVzV+MI3kZMNUDoY5uTsuSl1ZvEeZhNoJVk=',
+                'crossorigin': 'anonymous'
+            }
+        ]
+
+        css_files = [
+            'https://codepen.io/chriddyp/pen/bWLwgP.css',
+            {
+                'href': 'https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css',
+                'rel': 'stylesheet',
+                'integrity': 'sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO',
+                'crossorigin': 'anonymous'
+            }
+        ]
+
+        app = dash.Dash(__name__,
+                        external_scripts=js_files,
+                        external_stylesheets=css_files)
+
+        app.index_string = '''
+        <!DOCTYPE html>
+        <html>
+            <head>
+                {%metas%}
+                <title>{%title%}</title>
+                {%css%}
+            </head>
+            <body>
+                <div id="tested"></div>
+                <div id="ramda-test"></div>
+                <button type="button" id="btn">Btn</button>
+                {%app_entry%}
+                <footer>
+                    {%config%}
+                    {%scripts%}
+                </footer>
+            </body>
+        </html>
+        '''
+
+        app.layout = html.Div()
+
+        self.startServer(app)
+        time.sleep(0.5)
+
+        js_urls = [x['src'] if isinstance(x, dict) else x for x in js_files]
+        css_urls = [x['href'] if isinstance(x, dict) else x for x in css_files]
+
+        for fmt, url in itertools.chain(
+                (("//script[@src='{}']", x) for x in js_urls),
+                (("//link[@href='{}']", x) for x in css_urls)):
+            self.driver.find_element_by_xpath(fmt.format(url))
+
+        # Ensure the button style was overloaded by reset (set to 38px in codepen)
+        btn = self.driver.find_element_by_id('btn')
+        btn_height = btn.value_of_css_property('height')
+
+        self.assertEqual('18px', btn_height)
+
+        # ensure ramda was loaded before the assets so they can use it.
+        lo_test = self.driver.find_element_by_id('ramda-test')
+        self.assertEqual('Hello World', lo_test.text)
+
+    def test_func_layout_accepted(self):
+
+        app = dash.Dash()
+
+        def create_layout():
+            return html.Div('Hello World')
+        app.layout = create_layout
+
+        self.startServer(app)
+        time.sleep(0.5)

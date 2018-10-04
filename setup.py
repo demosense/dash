@@ -10,10 +10,12 @@ setup(
     author='chris p',
     author_email='chris@plot.ly',
     packages=find_packages(exclude=['tests*']),
+    include_package_data=True,
     license='MIT',
     description=('A Python framework for building reactive web-apps. '
                  'Developed by Plotly.'),
     long_description=io.open('README.md', encoding='utf-8').read(),
+    long_description_content_type='text/markdown',
     install_requires=[
         'Flask>=0.12',
         'flask-compress',

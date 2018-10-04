@@ -48,3 +48,19 @@ class CantHaveMultipleOutputs(CallbackException):
 
 class PreventUpdate(CallbackException):
     pass
+
+
+class DuplicateIdError(DashException):
+    pass
+
+
+class InvalidCallbackReturnValue(CallbackException):
+    pass
+
+
+class InvalidConfig(DashException):
+    pass
+
+
+class InvalidResourceError(DashException):
+    pass
